@@ -1,224 +1,84 @@
-## ButtonBridge
-Local Mouse Button Manager for Restricted Enterprise Environments
+# MX Remapper
 
-ButtonBridge is a lightweight local mouse button management solution designed for environments where third-party device management software may be restricted.
+Remaps buttons on a Logitech MX Master 2S on Windows 11 without installing
+Logi Options+: a React configurator UI (hosted on local IIS) talking to a
+zero-dependency Python background agent (`server.py`) that installs
+low-level Win32 hooks and synthesizes keystrokes.
 
-The application provides a browser-based interface for configuring mouse button actions while using a local Python agent to detect and execute button events. The frontend is hosted through IIS as a static React application, while the Python agent runs locally on the same machine and communicates directly with the browser.
+## What's inside
 
-This allows users to customize and manage mouse button mappings without requiring cloud connectivity, external services, or vendor-specific software.
+```
+frontend/   React + Tailwind + lucide-react source (Vite project)
+frontend/dist/   Pre-built static output — already built in this sandbox,
+                 ready to copy straight into IIS if you don't want to
+                 run `npm run build` yourself.
+backend/server.py   The Python agent. Stdlib only — nothing to pip install.
+deployment/web.config   IIS config for SPA routing + Private Network Access.
+```
 
-Features
-Local-only architecture
-No cloud dependencies
-Browser-based configuration UI
-Custom button-action mapping
-Lightweight Python background agent
-IIS hosting support
-Enterprise-friendly deployment model
-Direct communication between browser and local Python agent
-No dependency on Logitech Options+ or similar vendor software
+## ⚠️ Read before you rely on this: Mode Shift & Gesture button uplift is unverified
 
-Architecture
-+-----------------------------+
-| Chrome / Edge Browser       |
-| React Frontend              |
-+-------------+---------------+
-              |
-              |
-              v
-      HTTP Requests
-              |
-              |
-      127.0.0.1:8765
-              |
-              v
-+-----------------------------+
-| Local Python Agent          |
-| server.py                   |
-| Port 8765                   |
-+-----------------------------+
+Windows' generic HID mouse driver (active when Logi Options+ is **not**
+installed) only exposes a fixed set of events through `WH_MOUSE_LL`:
 
+| Input | Windows message | Status |
+|---|---|---|
+| Middle Click | `WM_MBUTTONDOWN` | ✅ Confirmed, works out of the box |
+| Side Back / Forward | `WM_XBUTTONDOWN` (XBUTTON1/2) | ✅ Confirmed, works out of the box |
+| Thumb wheel tilt left/right | `WM_MOUSEHWHEEL` | ✅ Confirmed, works out of the box |
+| **Mode Shift button** | — | ⚠️ **Unverified** — see below |
+| **Thumb-rest Gesture button** (tap + 4-way hold/swipe) | — | ⚠️ **Unverified** — see below |
 
-Frontend Hosting
-----------------
-+-----------------------------+
-| IIS Website                 |
-| Port 8080                   |
-| React dist/ files           |
-+-----------------------------+
-Communication Flow
-React application is served as static content from IIS.
-User accesses the application through Chrome or Edge.
-The browser loads the application from IIS.
-The browser communicates directly with the local Python Agent on 127.0.0.1:8765.
-The Python Agent processes button events and configuration requests.
-Configured actions are executed locally on the user's machine.
-Important
-The React application does not communicate with the Python Agent through IIS.
+Mode Shift and the Gesture button are Logitech-proprietary controls that
+Logi Options+ normally reads via the device's HID++ 2.0 report stream.
+I don't have a confirmed, documented Windows message that the *generic*
+driver emits for either of them — it's entirely possible the stock driver
+doesn't surface them as mouse events at all, in which case no
+`WH_MOUSE_LL`-based tool (including this one) can see them, and remapping
+them would require reverse-engineering the raw HID++ report format (e.g.
+with a USB protocol sniffer), which is a separate, larger project.
 
-Instead, the browser directly calls:
+**Find out what your hardware actually sends:**
 
-http://127.0.0.1:8765
-Therefore, the Python Agent must always run on the same machine as the browser.
+```
+python server.py --diagnose
+```
 
-Technology Stack
-Frontend
-React
-Vite
-TypeScript
-Backend
-Python
-server.py
-Hosting
-Microsoft IIS
-API Endpoints
-GET   /config
-POST  /config
+Then press every button, including Mode Shift and the Gesture button, and
+watch the console. If something prints for those two, `server.py` has a
+clearly-marked `EXTRA_XBUTTON_IDS` dict near the top where you plug in
+whatever id shows up, and the config UI already has mapping rows ready
+for them. If nothing prints, those two inputs are not remappable this way
+on your setup — the other five inputs (Middle Click, Back, Forward,
+thumb-wheel left/right) are unaffected and fully functional.
 
-GET   /events
+The frontend marks both buttons "unverified" in the UI for this reason.
 
-POST  /test
-Project Structure
-ButtonBridge
-│
-├── frontend/
-│   ├── src/
-│   ├── public/
-│   └── dist/
-│
-├── backend/
-│   └── server.py
-│
-└── README.md
-Local Development
-Frontend
-npm install
-npm run dev
-Production Build
-npm install
-npm run build
-Output:
+## Quick start
 
-dist/
-Running the Python Agent
-Navigate to the backend folder and start:
+1. **Backend:** `cd backend && python server.py --diagnose` → test every
+   button → then `python server.py` (leave it running).
+2. **Frontend (dev):** `cd frontend && npm install && npm run dev` — opens
+   at `http://localhost:5173`, talks to the agent at `127.0.0.1:8765`.
+3. **Frontend (IIS):** `cd frontend && npm run build`, copy `dist/*` plus
+   `../deployment/web.config` into an IIS site's physical path, browse to
+   it. Full steps are also in the app's own "IIS Hosting Guide" tab.
 
-python server.py
-Expected output:
+## Everything else in the spec
 
-Listening on Port 8765
-You can verify the agent by opening:
-
-http://127.0.0.1:8765
-IIS Deployment
-Step 1 - Build the Frontend
-npm install
-npm run build
-This produces:
-
-dist/
-Step 2 - Create IIS Site
-Open IIS Manager (inetmgr).
-Create a new Website or Application.
-Set the Physical Path to the generated dist folder.
-Configure a free port (example: 8080).
-Example:
-
-Physical Path : C:\Projects\ButtonBridge\dist
-Port          : 8080
-Step 3 - Install URL Rewrite Module
-Install the IIS URL Rewrite Module if it is not already installed.
-
-This is required so React routes are correctly redirected to index.html.
-
-Step 4 - Configure web.config
-Place the following web.config file inside the dist folder alongside index.html.
-
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <system.webServer>
-    <rewrite>
-      <rules>
-        <rule name="React Routes" stopProcessing="true">
-          <match url=".*" />
-          <conditions logical*rouping="MatchAll">
-            <a*d input="{REQUEST_FILENAME}" match*ype="IsFile" negate="true" />
-    *       <add input="{REQUEST_FILENA*E}" matchType="IsDirectory" negate*"true" />
-          </conditions>
-*         <action type="Rewrite" ur*="/" />
-        </rule>
-      </ru*es>
-    </rewrite>
-  </system.webS*rver>
-</configuration>
-#* Step 5 - Start the Python Agent
-
-*un:
-
-python server.py
-Verify that the agent is listeningon:
-
-http://127.0.0.1:8765*```
-
----
-
-## Step 6 - Access the A*plication
-
-Open:
-
-```text
-http://localhost:8080
-or
-
-http://<machine-ip>:8080
-P*ivate Network Access (PNA)
-When te application is opened for the fist time, Chrome or Edge may displa* a one-time Private Network Acce*s permission request because the*browser is communicating with:
-
-``*text http://127.0.0.1:8765
-
-
-Ac*ept the prompt to allow communicat*on with the local Python Agent.
-
-T*is confirmation is typically shown*only once.
-
----
-
-## Deployment Ove*view
-
-```text
-IIS Website (8080)
- *      │
-        ▼
- React Frontend
-*       │
-        ▼
- Chrome / Edge
-*       │
-        ▼
-127.0.0.*:8765
-        │
-        ▼
- Python*Agent
-        │
-        ▼
- Mouse B*tton Actions
-*``
-
----
-
-## Enterprise Use Case
-
-M*ny organizations*restrict mouse management software*due to security* compliance, or software installat*on policies.
-
-ButtonBridge provide* a lightweight alternative by:
-
-* Hosting the UI locally via IIS
-- *unning a local*Python service for button detectio* and execution
-- Keeping all commu*ication within the user's machine
-* Avoiding external cloud services*- Providing customizable button-to*action mapping through a web*interface
-
----
-
-## Disclaimer
-
-Thi* project is an independent utility*and is not affiliated with, endors*d by, or supported by Logitech or *ny other hardware manufacturer. An* product names referenced are used*solely for compatibility and identification purposes.
+- All 7 inputs + 4-way gesture swipe (with adjustable pixel threshold) are
+  configurable from the Configurator tab.
+- 20 built-in OS presets (Task View, desktop switching, copy/paste/cut,
+  undo/redo, browser tab nav, volume/media, window snap, show desktop,
+  emoji picker, mic mute) plus a live keyboard-capture custom shortcut
+  recorder.
+- Multiple named profiles with JSON import/export and a `localStorage`
+  fallback that keeps the UI usable (and syncs back) when the agent is
+  offline.
+- "Animate & Test Input" fires the mouse illustration's press/spin/glow
+  animation and sends a real `POST /test` to the agent; "Auto-Tour
+  Animations" cycles the illustration through every input as a visual-only
+  preview.
+- `server.py` sends `Access-Control-Allow-Private-Network: true` on every
+  response (including `OPTIONS` preflight), and `web.config` adds the same
+  header on the IIS side, for Chrome/Edge Private Network Access.
