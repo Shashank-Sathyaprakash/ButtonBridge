@@ -1,4 +1,4 @@
-MX Remapper
+## MX Remapper
 Remap Logitech MX Master 2S buttons on Windows 11 without installing Logi Options+.
 
 MX Remapper consists of:
