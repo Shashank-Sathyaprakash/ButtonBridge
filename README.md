@@ -1,4 +1,4 @@
-ButtonBridge
+## ButtonBridge
 Local Mouse Button Manager for Restricted Enterprise Environments
 
 ButtonBridge is a lightweight local mouse button management solution designed for environments where third-party device management software may be restricted.
@@ -17,6 +17,7 @@ IIS hosting support
 Enterprise-friendly deployment model
 Direct communication between browser and local Python agent
 No dependency on Logitech Options+ or similar vendor software
+
 Architecture
 +-----------------------------+
 | Chrome / Edge Browser       |
@@ -37,9 +38,9 @@ Architecture
 | Port 8765                   |
 +-----------------------------+
 
+
 Frontend Hosting
 ----------------
-
 +-----------------------------+
 | IIS Website                 |
 | Port 8080                   |
