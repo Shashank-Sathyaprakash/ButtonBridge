@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3a3f4b;
+  border-radius: 999px;
+}
+
+@keyframes dash-scroll {
+  to { stroke-dashoffset: -24; }
+}
+.animate-tread {
+  animation: dash-scroll 0.5s linear infinite;
+}

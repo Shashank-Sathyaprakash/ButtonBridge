@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  IIS web.config for the MX Remapper static frontend (Vite build output).
+
+  Prerequisites on the IIS server:
+    - URL Rewrite Module v2  (https://www.iis.net/downloads/microsoft/url-rewrite)
+    - Static Content feature enabled (Server Manager > Add Roles and Features
+      > Web Server (IIS) > Web Server > Common HTTP Features > Static Content)
+
+  Place this file in the site's root folder alongside the built `dist/`
+  contents (i.e. index.html and assets/ live next to this file).
+-->
+<configuration>
+  <system.webServer>
+
+    <!-- SPA fallback: any path that isn't a real file routes to index.html
+         so client-side navigation / refresh on a deep link doesn't 404. -->
+    <rewrite>
+      <rules>
+        <rule name="MX Remapper SPA Fallback" stopProcessing="true">
+          <match url=".*" />
+          <conditions logicalGrouping="MatchAll">
+            <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="true" />
+            <add input="{REQUEST_FILENAME}" matchType="IsDirectory" negate="true" />
+          </conditions>
+          <action type="Rewrite" url="/index.html" />
+        </rule>
+      </rules>
+    </rewrite>
+
+    <!-- Private Network Access: lets Chrome/Edge treat requests from this
+         (public-address-space) IIS site to 127.0.0.1:8765 as a permitted
+         cross-origin "private network" request instead of silently
+         blocking the preflight. The agent (server.py) also sends this
+         header on its own responses; both sides need it. -->
+    <httpProtocol>
+      <customHeaders>
+        <add name="Access-Control-Allow-Private-Network" value="true" />
+      </customHeaders>
+    </httpProtocol>
+
+    <staticContent>
+      <remove fileExtension=".json" />
+      <mimeMap fileExtension=".json" mimeType="application/json" />
+      <!-- Vite emits hashed, cache-busted filenames in assets/, so long
+           caching is safe for everything except index.html itself. -->
+      <clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="365.00:00:00" />
+    </staticContent>
+
+    <!-- index.html must always revalidate so deploys show up immediately -->
+    <location path="index.html">
+      <system.webServer>
+        <staticContent>
+          <clientCache cacheControlMode="DisableCache" />
+        </staticContent>
+      </system.webServer>
+    </location>
+
+    <defaultDocument>
+      <files>
+        <clear />
+        <add value="index.html" />
+      </files>
+    </defaultDocument>
+
+  </system.webServer>
+</configuration>
