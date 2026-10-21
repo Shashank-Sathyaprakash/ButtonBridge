@@ -1,84 +1,246 @@
-# MX Remapper
+MX Remapper
+Remap Logitech MX Master 2S buttons on Windows 11 without installing Logi Options+.
 
-Remaps buttons on a Logitech MX Master 2S on Windows 11 without installing
-Logi Options+: a React configurator UI (hosted on local IIS) talking to a
-zero-dependency Python background agent (`server.py`) that installs
-low-level Win32 hooks and synthesizes keystrokes.
+MX Remapper consists of:
 
-## What's inside
+A React-based configuration UI hosted locally through IIS
+A zero-dependency Python background agent (server.py)
+Low-level Win32 mouse hooks for button detection
+Synthetic keystroke generation for executing shortcuts
+Designed for environments where Logi Options+ may be restricted or unavailable.
 
-```
-frontend/   React + Tailwind + lucide-react source (Vite project)
-frontend/dist/   Pre-built static output — already built in this sandbox,
-                 ready to copy straight into IIS if you don't want to
-                 run `npm run build` yourself.
-backend/server.py   The Python agent. Stdlib only — nothing to pip install.
-deployment/web.config   IIS config for SPA routing + Private Network Access.
-```
+Features
+Local-only architecture
+No cloud services
+No external database
+Zero-dependency Python backend
+Browser-based configuration UI
+Multiple profiles
+JSON import/export
+Built-in shortcut presets
+Custom shortcut recording
+IIS deployment support
+Private Network Access (PNA) compatibility for Chrome/Edge
+Project Structure
+frontend/
+    React + Tailwind + lucide-react source (Vite project)
 
-## ⚠️ Read before you rely on this: Mode Shift & Gesture button uplift is unverified
+frontend/dist/
+    Production build output generated via npm run build
 
-Windows' generic HID mouse driver (active when Logi Options+ is **not**
-installed) only exposes a fixed set of events through `WH_MOUSE_LL`:
+backend/server.py
+    Python background agent
+    Uses only Python standard library
 
-| Input | Windows message | Status |
-|---|---|---|
-| Middle Click | `WM_MBUTTONDOWN` | ✅ Confirmed, works out of the box |
-| Side Back / Forward | `WM_XBUTTONDOWN` (XBUTTON1/2) | ✅ Confirmed, works out of the box |
-| Thumb wheel tilt left/right | `WM_MOUSEHWHEEL` | ✅ Confirmed, works out of the box |
-| **Mode Shift button** | — | ⚠️ **Unverified** — see below |
-| **Thumb-rest Gesture button** (tap + 4-way hold/swipe) | — | ⚠️ **Unverified** — see below |
+deployment/web.config
+    IIS configuration
+    SPA routing support
+    Private Network Access headers
+Architecture
++---------------------------+
+| Chrome / Edge Browser     |
+| React Frontend            |
++-------------+-------------+
+              |
+              |
+              v
+      HTTP Requests
+              |
+              |
+      127.0.0.1:8765
+              |
+              v
++---------------------------+
+| Local Python Agent        |
+| server.py                 |
+| Port 8765                 |
++---------------------------+
 
-Mode Shift and the Gesture button are Logitech-proprietary controls that
-Logi Options+ normally reads via the device's HID++ 2.0 report stream.
-I don't have a confirmed, documented Windows message that the *generic*
-driver emits for either of them — it's entirely possible the stock driver
-doesn't surface them as mouse events at all, in which case no
-`WH_MOUSE_LL`-based tool (including this one) can see them, and remapping
-them would require reverse-engineering the raw HID++ report format (e.g.
-with a USB protocol sniffer), which is a separate, larger project.
+Frontend Hosting
+----------------
 
-**Find out what your hardware actually sends:**
++---------------------------+
+| IIS Website               |
+| Port 8080                 |
+| React dist/ files         |
++---------------------------+
+Communication Flow
+IIS serves the React build as static files.
+The browser loads the application from IIS.
+The browser communicates directly with the Python Agent running on 127.0.0.1:8765.
+The agent listens for mouse events.
+Matching shortcuts are executed locally.
+Important
+The React application does not communicate with the backend through IIS.
 
-```
+Instead, the browser directly calls:
+
+http://127.0.0.1:8765
+Therefore the Python Agent must be running on the same machine as the browser.
+
+Supported Inputs
+Input	Windows Message	Status
+Middle Click	WM_MBUTTONDOWN	✅ Supported
+Back Button	WM_XBUTTONDOWN (XBUTTON1)	✅ Supported
+Forward Button	WM_XBUTTONDOWN (XBUTTON2)	✅ Supported
+Thumb Wheel Left	WM_MOUSEHWHEEL	✅ Supported
+Thumb Wheel Right	WM_MOUSEHWHEEL	✅ Supported
+Mode Shift Button	Unknown	⚠️ Unverified
+Gesture Button	Unknown	⚠️ Unverified
+Mode Shift & Gesture Button Limitation
+The Mode Shift and Gesture buttons are Logitech-specific controls typically handled through the HID++ 2.0 protocol used by Logi Options+.
+
+When the mouse operates using only the generic Windows HID driver, these controls may not generate standard Windows mouse messages.
+
+As a result:
+
+They may be detectable
+They may expose custom button IDs
+They may not be visible to Windows at all
+Detection depends entirely on the behavior of your hardware and driver combination.
+
+Diagnostic Mode
+To determine what your specific device exposes:
+
+cd backend
 python server.py --diagnose
-```
+Press every mouse button and observe the console output.
 
-Then press every button, including Mode Shift and the Gesture button, and
-watch the console. If something prints for those two, `server.py` has a
-clearly-marked `EXTRA_XBUTTON_IDS` dict near the top where you plug in
-whatever id shows up, and the config UI already has mapping rows ready
-for them. If nothing prints, those two inputs are not remappable this way
-on your setup — the other five inputs (Middle Click, Back, Forward,
-thumb-wheel left/right) are unaffected and fully functional.
+If the Mode Shift or Gesture button produces an identifier, it can be mapped by updating the EXTRA_XBUTTON_IDS section in server.py.
 
-The frontend marks both buttons "unverified" in the UI for this reason.
+If no event appears, those inputs cannot be remapped through standard Win32 mouse hooks on your setup.
 
-## Quick start
+Quick Start
+1. Start Backend
+cd backend
+python server.py --diagnose
+Verify all desired buttons are detected.
 
-1. **Backend:** `cd backend && python server.py --diagnose` → test every
-   button → then `python server.py` (leave it running).
-2. **Frontend (dev):** `cd frontend && npm install && npm run dev` — opens
-   at `http://localhost:5173`, talks to the agent at `127.0.0.1:8765`.
-3. **Frontend (IIS):** `cd frontend && npm run build`, copy `dist/*` plus
-   `../deployment/web.config` into an IIS site's physical path, browse to
-   it. Full steps are also in the app's own "IIS Hosting Guide" tab.
+Then start normally:
 
-## Everything else in the spec
+python server.py
+Leave it running.
 
-- All 7 inputs + 4-way gesture swipe (with adjustable pixel threshold) are
-  configurable from the Configurator tab.
-- 20 built-in OS presets (Task View, desktop switching, copy/paste/cut,
-  undo/redo, browser tab nav, volume/media, window snap, show desktop,
-  emoji picker, mic mute) plus a live keyboard-capture custom shortcut
-  recorder.
-- Multiple named profiles with JSON import/export and a `localStorage`
-  fallback that keeps the UI usable (and syncs back) when the agent is
-  offline.
-- "Animate & Test Input" fires the mouse illustration's press/spin/glow
-  animation and sends a real `POST /test` to the agent; "Auto-Tour
-  Animations" cycles the illustration through every input as a visual-only
-  preview.
-- `server.py` sends `Access-Control-Allow-Private-Network: true` on every
-  response (including `OPTIONS` preflight), and `web.config` adds the same
-  header on the IIS side, for Chrome/Edge Private Network Access.
+2. Frontend Development
+cd frontend
+
+npm install
+
+npm run dev
+Application:
+
+http://localhost:5173
+Backend:
+
+http://127.0.0.1:8765
+IIS Deployment
+Step 1 - Install Dependencies
+Navigate to the frontend folder:
+
+cd frontend
+Install packages:
+
+npm install
+Step 2 - Generate Production Build
+Build the application:
+
+npm run build
+This generates:
+
+frontend/dist
+Step 3 - Create IIS Site
+Open:
+
+inetmgr
+Create a new IIS Website.
+
+Example:
+
+Site Name:
+MX Remapper
+
+Physical Path:
+<project>\frontend\dist
+
+Port:
+8080
+Step 4 - Copy web.config
+Copy:
+
+deployment/web.config
+into:
+
+frontend/dist
+alongside:
+
+index.html
+Step 5 - Start Python Agent
+cd backend
+
+python server.py
+The agent should now listen on:
+
+http://127.0.0.1:8765
+Step 6 - Open Application
+Browse to:
+
+http://localhost:8080
+or
+
+http://<computer-ip>:8080
+Available Functionality
+Multiple named profiles
+JSON import/export
+localStorage offline fallback
+Automatic profile synchronization
+20 built-in OS shortcut presets
+Custom shortcut recorder
+Mouse input visualization
+Live testing via POST /test
+Auto-tour animation mode
+Gesture swipe threshold configuration
+Built-In Shortcut Presets
+Includes mappings for:
+
+Task View
+Virtual Desktop Left
+Virtual Desktop Right
+Copy
+Paste
+Cut
+Undo
+Redo
+Browser Previous Tab
+Browser Next Tab
+Volume Up
+Volume Down
+Mute
+Media Play/Pause
+Window Snap Left
+Window Snap Right
+Show Desktop
+Emoji Picker
+Microphone Mute
+Additional productivity shortcuts
+Private Network Access (PNA)
+Modern versions of Chrome and Edge require permission when a webpage communicates with a local service.
+
+MX Remapper supports this by returning:
+
+Access-Control-Allow-Private-Network: true
+from:
+
+Python Agent (server.py)
+IIS (web.config)
+The browser may display a one-time permission prompt during first use.
+
+Accept the request to enable communication with the local Python Agent.
+
+Requirements
+Windows 11
+Python 3.x
+IIS
+IIS URL Rewrite Module
+Chrome or Microsoft Edge
+Disclaimer
+This project is an independent utility and is not affiliated with, endorsed by, or supported by Logitech. Any product names referenced are used solely for compatibility and identification purposes.
