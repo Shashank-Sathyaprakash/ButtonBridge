@@ -1,8 +1,8 @@
-# MX Remapper
+# Button Bridge
 
 Remap Logitech MX Master 2S buttons on Windows 11 without installing Logi Options+.
 
-MX Remapper consists of:
+Button Bridge consists of:
 
 - React-based configuration UI hosted on IIS
 - Zero-dependency Python background agent (`server.py`)
